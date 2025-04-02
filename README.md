@@ -58,4 +58,13 @@ git clone https://github.com/your_username/solana-price-data-analysis.git
 cd solana-price-data-analysis
 ```
 
+## Screenshots
+
+1. ![Solana Price Chart](./images/Solana-price-chart.png)
+
+2. ![Solana correlation_matrix](./images/Solana-correlation-matrix.png)
+
+3. ![Solana technical_indicators](./images/Solana-technical-indicators.png)
+
+
 
