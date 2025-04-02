@@ -62,9 +62,9 @@ cd solana-price-data-analysis
 
 1. ![Solana Price Chart](./images/Solana-price-chart.png)
 
-2. ![Solana correlation_matrix](./images/Solana-correlation-matrix.png)
+2. ![Solana correlation_matrix](./images/solana-correlation-matrix.png)
 
-3. ![Solana technical_indicators](./images/Solana-technical-indicators.png)
+3. ![Solana technical_indicators](./images/solana-technical-indicators.png)
 
 
 
