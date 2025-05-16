@@ -60,13 +60,14 @@ cd solana-price-data-analysis
 
 ## Screenshots
 
-1. ![Solana Price Chart](./images/Solana_Price_Chart.png)
+###1. Solana Price Chart
+![Solana Price Chart](./images/Solana_Price_Chart.png)
 
-2. ![Key_Features_Visualisation](./images/Key_Features_Visualisation.png)
+3. ![Key_Features_Visualisation](./images/Key_Features_Visualisation.png)
 
-3. ![Z-Score_Outlier_Detection](./images/Z-Score_Outlier_Detection.png)
+4. ![Z-Score_Outlier_Detection](./images/Z-Score_Outlier_Detection.png)
    
-4. ![Feature_Importance_Plotting](./images/Feature_Importance_Plotting.png)
+5. ![Feature_Importance_Plotting](./images/Feature_Importance_Plotting.png)
 
 
 
