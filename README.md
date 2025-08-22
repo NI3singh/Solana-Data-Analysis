@@ -18,10 +18,24 @@ This repository contains a comprehensive analysis of Solana price data collected
     *Jupyter Notebook for fetching the OHLCV data and adding technical indicators.*
   - `data_analysis.ipynb`  
     *Jupyter Notebook for performing data cleaning, feature engineering, and preprocessing.*
+  - `crypto-prediction.ipynb`  
+    *Notebook for training a model to predict Solana price based on historical data.*
+  - `Cypto_data_processing_v3.ipynb`  
+    *Complete end-to-end data pipeline: ingestion, cleaning, merging, and feature engineering for Solana data.*
+  - `live-dashboard.py`  
+    *Python script for a real-time Solana price dashboard using Binance API.*
+
 
 - **Figures:**
   - `./images/solana_price_chart.png`  
     *A sample visualization of the Solana price data with added indicators.*
+  - `./images/live_dashboard.png`  
+    *Screenshot of the real-time Solana price dashboard using Binance API.*
+  - `./images/terminal_output.png`  
+    *Terminal output showcasing the successful execution of data pipeline scripts.*
+  - `./images/solana_prediction_vs_actual.png`  
+    *Visualization comparing actual vs predicted Solana prices, with MAE, RMSE, and MAPE metrics.*
+
 
 ---
 
@@ -47,6 +61,37 @@ This repository contains a comprehensive analysis of Solana price data collected
   - Execute preprocessing steps in an orderly manner.
   - Produce the final, enhanced dataset with 44 columns.
 
+### Cypto_data_processing_v3.ipynb
+
+- **Purpose:**  
+  This notebook presents an end-to-end data pipeline for Solana price data:
+  - Ingest raw data.
+  - Clean, merge, and transform it.
+  - Apply feature engineering to prepare for modeling.
+
+- **Output:**  
+  Cleaned and feature-rich dataset ready for model training.
+
+### crypto-prediction.ipynb
+
+- **Purpose:**  
+  This notebook is designed to:
+  - Train a machine learning model for Solana price prediction.
+  - Evaluate model performance using test data.
+
+- **Modeling Techniques:**  
+  Includes time-series model training steps and evaluation metrics.
+
+### live-dashboard.py
+
+- **Purpose:**  
+  This Python script runs a real-time dashboard:
+  - Fetches live Solana price data using the Binance API.
+  - Displays price movement and key metrics dynamically.
+
+- **Tech Stack:**  
+  Built using `streamlit` for interactive visualization.
+
 ---
 
 ## Getting Started
@@ -71,6 +116,17 @@ cd solana-price-data-analysis
    
 4. Feature_Importance_Plotting
    ![Feature_Importance_Plotting](./images/Feature_Importance_Plotting.png)
+
+5. solana_prediction_vs_actual_Plotting
+   ![solana_prediction_vs_actual_Plotting](./images/solana_prediction_vs_actual.png)
+
+6. terminal_output
+   ![terminal_output](./images/terminal_output.png)
+
+7. live_dashboard
+   ![live_dashboard](./images/live_dashboard.png)
+
+
 
 
 
