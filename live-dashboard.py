@@ -261,24 +261,26 @@ with st.sidebar.expander("Advanced Options"):
         st.session_state.chart_data = pd.DataFrame()
 
 # Binance API credentials
-API_KEY = st.sidebar.text_input("API Key (optional)", value="please put your own key", type="password")
-API_SECRET = st.sidebar.text_input("API Secret (optional)", value="please put your own secret ", type="password")
+API_KEY = st.secrets.get("API_KEY", "")
+API_SECRET = st.secrets.get("API_SECRET", "")
 
 # Initialize Binance client with or without credentials
 @st.cache_resource
 def get_binance_client():
     try:
+        # Check if keys were loaded from secrets
         if API_KEY and API_SECRET:
-            logger.info("Initializing Binance client with API keys")
+            logger.info("Initializing Binance client with API keys from secrets.")
             return Client(API_KEY, API_SECRET)
         else:
-            logger.info("Initializing Binance client without API keys")
+            logger.info("Initializing Binance client without API keys (credentials not found in secrets).")
             return Client("", "")
     except Exception as e:
         logger.error(f"Failed to initialize Binance client: {e}")
         st.sidebar.error(f"Failed to initialize Binance client: {e}")
         # Return a client with no keys as fallback
         return Client("", "")
+
 
 def get_historical_klines(symbol, interval, days):
     """
