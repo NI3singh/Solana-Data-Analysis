@@ -120,11 +120,11 @@ cd solana-price-data-analysis
 5. solana_prediction_vs_actual_Plotting
    ![solana_prediction_vs_actual_Plotting](./images/solana_prediction_vs_actual.png)
 
-6. terminal_output_Plotting
-   ![terminal_output_Plotting](./images/terminal_output.png)
+6. terminal_output
+   ![terminal_output](./images/terminal_output.png)
 
-7. live_dashboard_Plotting
-   ![live_dashboard_Plotting](./images/live_dashboard.png)
+7. live_dashboard
+   ![live_dashboard](./images/live_dashboard.png)
 
 
 
