@@ -5,6 +5,7 @@ altair==5.5.0
 async-timeout==5.0.1
 attrs==25.3.0
 blinker==1.9.0
+binance==1.0.29
 cachetools==6.1.0
 certifi==2025.8.3
 charset-normalizer==3.4.3
