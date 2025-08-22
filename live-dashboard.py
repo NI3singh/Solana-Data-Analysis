@@ -12,6 +12,10 @@ import logging
 import traceback
 import warnings
 
+if 'api_initialized' not in st.session_state:
+    st.session_state.api_initialized = False
+
+
 live_price_global = 0.0
 prev_price_global = 0.0
 chart_data_global = pd.DataFrame()
