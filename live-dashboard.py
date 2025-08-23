@@ -12,25 +12,17 @@ import logging
 import traceback
 import warnings
 
-if 'api_initialized' not in st.session_state:
-    st.session_state.api_initialized = False
-
-
 live_price_global = 0.0
 prev_price_global = 0.0
 chart_data_global = pd.DataFrame()
 
-
 # 1. Suppress all Python warnings
 warnings.filterwarnings("ignore")
-
 # 2. Silence the websocket‐client logger
 logging.getLogger("websocket").setLevel(logging.ERROR)
-
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 # Set page config
 st.set_page_config(
     page_title="Solana Live Candlestick Chart",
@@ -38,7 +30,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # Apply custom CSS for dark theme and UI improvements
 st.markdown("""
 <style>
@@ -92,11 +83,17 @@ st.markdown("""
         color: #ef5350;
     }
     .stButton>button {
-        width: 100%;
         background-color: #26a69a;
         color: white;
         font-weight: bold;
         border: none;
+        padding: 10px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: block;
+        margin: 0 auto;
+        width: auto;
+        transition: background-color 0.2s;
     }
     .stButton>button:hover {
         background-color: #2bbbad;
@@ -150,7 +147,7 @@ st.markdown("""
         background-color: #26a69a !important;
         color: white !important;
     }
-    * Dark mode for Streamlit tables */
+    /* Dark mode for Streamlit tables */
     .stDataFrame table, .stTable table {
         background-color: #1e2130 !important;
         color: white !important;
@@ -162,9 +159,19 @@ st.markdown("""
     .stDataFrame td, .stTable td {
         color: white !important;
     }
+    /* Button container styling */
+    .button-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    /* Metrics container styling */
+    .metrics-container {
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
-
 # Initialize session state variables if they don't exist
 if 'chart_data' not in st.session_state:
     st.session_state.chart_data = pd.DataFrame()
@@ -190,24 +197,20 @@ if 'price_change_24h_pct' not in st.session_state:
     st.session_state.price_change_24h_pct = 0
 if 'refresh_count' not in st.session_state:
     st.session_state.refresh_count = 0
-
 # Create placeholders for dynamic content
 header_placeholder = st.empty()
 metrics_placeholder = st.container()
 chart_placeholder = st.empty()
 status_placeholder = st.empty()
 button_placeholder = st.empty()
-
 # Sidebar configuration
 st.sidebar.title("Solana Chart Settings")
-
 # Trading pair selection
 trading_pair = st.sidebar.selectbox(
     "Trading Pair",
     options=["SOLUSDT", "SOLBUSD", "SOLBTC", "SOLETH"],
     index=0
 )
-
 # Timeframe selection
 timeframe_options = {
     "1 minute": "1m",
@@ -224,20 +227,17 @@ selected_timeframe = st.sidebar.selectbox(
     index=6  # Default to 1d
 )
 interval = timeframe_options[selected_timeframe]
-
 # Update interval if changed
 if interval != st.session_state.interval:
     st.session_state.interval = interval
     # Reset data when interval changes
     st.session_state.chart_data = pd.DataFrame()
-
 # EMA settings
 ema_indicators = st.sidebar.multiselect(
     "EMA Indicators",
     options=[20, 50, 100, 200],
     default=[20, 50, 100, 200]
 )
-
 # Advanced options
 with st.sidebar.expander("Advanced Options"):
     update_frequency = st.slider(
@@ -253,17 +253,14 @@ with st.sidebar.expander("Advanced Options"):
         max_value=360,
         value=360
     )
-
     # Update days to fetch if changed
     if days_to_fetch != st.session_state.days_to_fetch:
         st.session_state.days_to_fetch = days_to_fetch
         # Reset data when days changes
         st.session_state.chart_data = pd.DataFrame()
-
 # Binance API credentials
 API_KEY = st.secrets.get("API_KEY", "")
 API_SECRET = st.secrets.get("API_SECRET", "")
-
 # Initialize Binance client with or without credentials
 @st.cache_resource
 def get_binance_client():
@@ -319,7 +316,6 @@ def get_historical_klines(symbol, interval, days):
         logger.error(f"Error fetching historical data: {e}")
         logger.error(traceback.format_exc())
         raise Exception(f"Error fetching historical data: {e}")
-
 def add_ema(df, periods):
     """
     Add Exponential Moving Averages (EMAs) to the DataFrame.
@@ -334,13 +330,11 @@ def add_ema(df, periods):
     for period in periods:
         df[f'EMA_{period}'] = df['close'].ewm(span=period, adjust=False).mean()
     return df
-
 def on_ws_message(ws, message):
     """
     Handle WebSocket message for real-time price updates.
     """
     global prev_price_global, live_price_global, chart_data_global
-
     if not st.session_state.running:
         return
         
@@ -356,16 +350,13 @@ def on_ws_message(ws, message):
             # Update session state with the latest price
             # st.session_state.prev_price = st.session_state.live_price
             # st.session_state.live_price = float(kline['c'])
-
             prev_price_global = live_price_global
             live_price_global = float(kline['c'])
-
             # Optionally: if you want to update the session_state in main thread (only if safe)
             # st.session_state['live_price'] = live_price_global
             # st.session_state['prev_price'] = prev_price_global
             print(f"Received new price: {live_price_global}")
             print(f"Previous price: {prev_price_global}")
-
             # If the candle is closed, update our historical data
             if kline['x']:
                 # We need to fetch the latest data again when a candle closes
@@ -394,7 +385,6 @@ def on_ws_message(ws, message):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         logger.error(traceback.format_exc())
-
 def on_ws_error(ws, error):
     logger.error(f"WebSocket error: {error}")
     
@@ -405,7 +395,6 @@ def on_ws_close(ws, close_status_code, close_msg):
 def on_ws_open(ws):
     logger.info(f"WebSocket connection opened for {trading_pair.lower()}@kline_{interval}")
     st.session_state.running = True
-
 def start_websocket():
     """
     Start WebSocket connection for real-time data.
@@ -445,7 +434,6 @@ def start_websocket():
         logger.error(f"Failed to start WebSocket: {e}")
         logger.error(traceback.format_exc())
         status_placeholder.error(f"Failed to start WebSocket: {e}")
-
 def stop_websocket():
     """
     Stop WebSocket connection.
@@ -458,7 +446,6 @@ def stop_websocket():
         except Exception as e:
             logger.error(f"Error closing WebSocket: {e}")
     st.session_state.running = False
-
 def calculate_24h_change():
     """
     Calculate the 24-hour price change and percentage.
@@ -489,7 +476,6 @@ def calculate_24h_change():
         price_24h_ago = df['close'].iloc[-periods_in_day-1] if len(df) > periods_in_day + 1 else df['close'].iloc[0]
         st.session_state.price_change_24h = current_price - price_24h_ago
         st.session_state.price_change_24h_pct = (st.session_state.price_change_24h / price_24h_ago) * 100 if price_24h_ago != 0 else 0
-
 def update_chart_data():
     """
     Update the chart data from Binance API.
@@ -519,7 +505,6 @@ def update_chart_data():
         logger.error(f"Error updating chart data: {e}")
         logger.error(traceback.format_exc())
         status_placeholder.error(f"Error updating chart data: {e}")
-
 def create_candlestick_chart(df):
     """
     Create an interactive Plotly candlestick chart with EMAs.
@@ -616,7 +601,6 @@ def create_candlestick_chart(df):
     )
     
     return fig
-
 def display_metrics(df):
     """
     Display key metrics in a dashboard style.
@@ -674,7 +658,6 @@ def display_metrics(df):
                     <div class="change-value {ema_class}">{ema_symbol}{price_vs_ema_pct:.2f}%</div>
                 </div>
                 """, unsafe_allow_html=True)
-
 def main():
     """
     Main function to run the Streamlit app.
@@ -685,31 +668,31 @@ def main():
         unsafe_allow_html=True
     )
     
-    # Display metrics
-    display_metrics(st.session_state.chart_data)
+    # Display metrics in the metrics container
+    with metrics_placeholder.container():
+        display_metrics(st.session_state.chart_data)
     
     # Create and display chart
-    fig = create_candlestick_chart(st.session_state.chart_data)
-    chart_placeholder.plotly_chart(fig, use_container_width=True)
-
-    # 3.1 Show the raw historical data as a table
-    # st.subheader("Historical Data Table")
-    # st.dataframe(st.session_state.chart_data, use_container_width=True)
+    with chart_placeholder.container():
+        fig = create_candlestick_chart(st.session_state.chart_data)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Show the historical data table
     st.subheader("Historical Data Table (OHLCV only)")
     ohlcv_cols = ["open", "high", "low", "close", "volume"]
     st.dataframe(
         st.session_state.chart_data[ohlcv_cols],
         use_container_width=True,
     )
-
     
     # Add a button below the chart to manually fetch data
-    col1, col2, col3 = button_placeholder.columns([1, 1, 1])
-    with col2:
-        if st.button("Fetch Data"):
-            with st.spinner('Fetching latest data...'):
-                update_chart_data()
-                st.rerun()
+    # Using a custom container for better button styling
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    if st.button("Fetch Data"):
+        with st.spinner('Fetching latest data...'):
+            update_chart_data()
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Display last update time
     time_diff = (datetime.now() - st.session_state.last_update).total_seconds()
@@ -725,8 +708,7 @@ def main():
         logger.info(f"Auto-updating data (refresh count: {st.session_state.refresh_count + 1})")
         update_chart_data()
         st.rerun()
-
-    # 4. Auto‑refresh the entire page every `update_frequency` seconds
+    # 4. Auto‐refresh the entire page every `update_frequency` seconds
     st.markdown(
         f"""
         <script>
@@ -737,7 +719,6 @@ def main():
         """,
         unsafe_allow_html=True
     )
-
 # Initialize WebSocket and data on startup
 def initialize():
     """
@@ -745,7 +726,6 @@ def initialize():
     """
     # Initialize session state values if not already set
     
-
     if st.session_state.chart_data.empty:
         try:
             logger.info("Initializing application and fetching initial data")
@@ -760,7 +740,6 @@ def initialize():
             logger.error(f"Initialization error: {e}")
             logger.error(traceback.format_exc())
             st.error(f"Initialization error: {e}")
-
 # Cleanup on session end
 def cleanup():
     """
@@ -768,11 +747,9 @@ def cleanup():
     """
     logger.info("Cleaning up resources")
     stop_websocket()
-
 # Register the cleanup function
 import atexit
 atexit.register(cleanup)
-
 # Run the application
 if __name__ == "__main__":
     try:
