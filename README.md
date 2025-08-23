@@ -100,6 +100,8 @@ This repository contains a comprehensive analysis of Solana price data collected
 
 ```bash
 git clone https://github.com/your_username/solana-price-data-analysis.git
+```
+```bash
 cd solana-price-data-analysis
 ```
 
