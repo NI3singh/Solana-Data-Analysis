@@ -101,10 +101,26 @@ This repository contains a comprehensive analysis of Solana price data collected
 ```bash
 git clone https://github.com/your_username/solana-price-data-analysis.git
 ```
+### go to project directory
 ```bash
 cd solana-price-data-analysis
 ```
+### create a API key file in .streamlit directory
 
+```bash
+mkdir .streamlit/secrets.toml
+```
+### In .streamlit/secrets.toml file 
+
+```bash
+API_KEY = "put_your_api_key_here"
+API_SECRET = "put_your_api_secret_here"
+```
+### Run the File
+
+```bash
+streamlit run live-dashboard.py
+```
 ## Screenshots
 
 1. Solana Price Chart
