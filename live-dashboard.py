@@ -259,8 +259,10 @@ with st.sidebar.expander("Advanced Options"):
         # Reset data when days changes
         st.session_state.chart_data = pd.DataFrame()
 # Binance API credentials
-API_KEY = st.secrets.get("API_KEY", "")
-API_SECRET = st.secrets.get("API_SECRET", "")
+# API_KEY = st.secrets.get("API_KEY", "")
+# API_SECRET = st.secrets.get("API_SECRET", "")
+API_KEY = os.environ.get("API_KEY", "")
+API_SECRET = os.environ.get("API_SECRET", "")
 # Initialize Binance client with or without credentials
 @st.cache_resource
 def get_binance_client():
