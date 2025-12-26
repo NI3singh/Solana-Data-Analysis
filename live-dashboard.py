@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import logging
 import traceback
 import warnings
+import os
 
 live_price_global = 0.0
 prev_price_global = 0.0
