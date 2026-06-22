@@ -23,15 +23,14 @@ import numpy as np
 
 import pandas as pd
 
+import requests                      # ← direct HTTPS to Binance REST
+
 import plotly.graph_objects as go
 
 import streamlit as st
 
-import websocket
+import websocket                     # ← WebSocket client only (no python-binance)
 
-from binance.client import Client
-
-from binance.exceptions import BinanceAPIException
 
 
 # ──────────────────────────── logging & warnings ────────────────────────────
@@ -48,9 +47,11 @@ logger = logging.getLogger(__name__)
 
 # ──────────────────────────── shared (thread-safe) state ────────────────────
 
-# The WebSocket thread mutates the globals below; the Streamlit main thread
+# The WebSocket thread mutates the OHLCV + price globals; the Streamlit main
 
-# reads them through `sync_state()`. Two separate locks keep concerns clean:
+# thread reads them through `sync_state()`. Two separate locks keep concerns
+
+# clean:
 
 _state_lock = threading.Lock()        # protects OHLCV + price globals
 
@@ -69,6 +70,8 @@ last_tick_global = None               # datetime of most recent WS tick
 ws_connected: bool = False            # mirrors WebSocketApp open/close state
 
 ws_app = None                         # current WebSocketApp instance
+
+_intentional_close: bool = False      # suppresses reconnect when WE closed it
 
 current_pair: str = "solusdt"         # always lowercase; matches Binance URL
 
@@ -243,127 +246,164 @@ for _k, _v in _DEFAULTS.items():
 
 
 
-# ──────────────────────────── Binance client (no auth needed) ───────────────
+# ──────────────────────────── Binance REST (direct HTTPS, no client lib) ─────
 
-@st.cache_resource
-
-def get_binance_client():
-
-    """Public market data (klines, websocket) doesn't require API keys."""
-
-    try:
-
-        api_key = os.environ.get("API_KEY") or None
-
-        api_secret = os.environ.get("API_SECRET") or None
-
-        return Client(api_key, api_secret, {"timeout": 20})
-
-    except Exception as e:
-
-        logger.error("Binance client init failed: %s", e)
-
-        return None
+BINANCE_REST = "https://api.binance.com"
 
 
 
-# ──────────────────────────── cached kline fetch (one REST call) ────────────
-
-@st.cache_data(ttl=3600, show_spinner=False)
-
-def fetch_klines_cached(symbol: str, interval: str, days: int) -> pd.DataFrame:
+def _fetch_klines_paginated(symbol: str, interval: str, days: int) -> list:
 
     """
 
-    Fetch historical klines. Cached for 1h per (symbol, interval, days).
+    Fetch historical klines from the Binance public REST endpoint.
 
-    This is THE ONLY place that hits Binance REST, so it must be cheap.
+    No `python-binance.Client` needed — works on Python 3.13, no auth,
 
-    Retries with exponential backoff on rate-limit errors.
+    no SSL chain surprises. Paginates 1000 candles at a time.
+
+    Retries with exponential backoff on 429 / 418 / network errors.
 
     """
 
-    client = get_binance_client()
+    end_ms = int(time.time() * 1000)
 
-    if client is None:
-
-        raise RuntimeError("Binance client could not be initialized")
+    start_ms = end_ms - days * 24 * 60 * 60 * 1000
 
 
-    last_err = None
+    last_err: Exception | None = None
 
     for attempt in range(5):
 
         try:
 
-            klines = client.get_historical_klines(
+            collected: list = []
 
-                symbol, interval, f"{days} days ago UTC"
+            cursor = start_ms
 
-            )
+            while cursor < end_ms:
 
-            df = pd.DataFrame(
+                params = {
 
-                klines,
+                    "symbol": symbol,
 
-                columns=[
+                    "interval": interval,
 
-                    "timestamp", "open", "high", "low", "close", "volume",
+                    "startTime": cursor,
 
-                    "close_time", "quote_asset_volume", "number_of_trades",
+                    "endTime": end_ms,
 
-                    "taker_buy_base_asset_volume",
+                    "limit": 1000,
 
-                    "taker_buy_quote_asset_volume", "ignore",
+                }
 
-                ],
+                resp = requests.get(
 
-            )
+                    f"{BINANCE_REST}/api/v3/klines",
 
-            df = df[["timestamp", "open", "high", "low", "close", "volume"]]
+                    params=params,
 
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-
-            df.set_index("timestamp", inplace=True)
-
-            for col in ("open", "high", "low", "close", "volume"):
-
-                df[col] = df[col].astype(float)
-
-            return df
-
-        except BinanceAPIException as e:
-
-            last_err = e
-
-            if e.code == -1003:  # IP banned / rate limited
-
-                wait = (2 ** attempt) + random.uniform(0.1, 1.0)
-
-                logger.warning(
-
-                    "Binance rate-limited (attempt %d/5). Sleeping %.1fs.",
-
-                    attempt + 1, wait,
+                    timeout=20,
 
                 )
 
-                time.sleep(wait)
+                if resp.status_code in (418, 429):
 
-                continue
+                    # Banned / throttled — surface as a recognisable error
 
-            raise
+                    raise RuntimeError(
+
+                        f"Binance rate-limited (HTTP {resp.status_code}); "
+
+                        f"will back off and retry"
+
+                    )
+
+                resp.raise_for_status()
+
+                data = resp.json()
+
+                if not data:
+
+                    break
+
+                collected.extend(data)
+
+                # Advance cursor past the last kline's close time
+
+                cursor = data[-1][6] + 1
+
+                if len(data) < 1000:
+
+                    break
+
+                # Tiny politeness delay between paginated requests only.
+
+                time.sleep(0.1)
+
+            if not collected:
+
+                raise RuntimeError("Binance returned an empty kline list")
+
+            return collected
 
         except Exception as e:
 
             last_err = e
 
-            logger.error("Kline fetch error: %s", e)
+            wait = (2 ** attempt) + random.uniform(0.2, 1.0)
 
-            time.sleep(1)
+            logger.warning(
+
+                "Kline fetch attempt %d/5 failed: %s. Sleeping %.1fs.",
+
+                attempt + 1, e, wait,
+
+            )
+
+            time.sleep(wait)
+
+    raise RuntimeError(f"Failed to fetch klines after 5 retries: {last_err}")
 
 
-    raise RuntimeError(f"Failed to fetch klines after retries: {last_err}")
+
+@st.cache_data(ttl=3600, show_spinner=False)
+
+def fetch_klines_cached(symbol: str, interval: str, days: int) -> pd.DataFrame:
+
+    """Cached historical kline fetch — at most once per (symbol, interval, days)."""
+
+    raw = _fetch_klines_paginated(symbol, interval, days)
+
+    df = pd.DataFrame(
+
+        raw,
+
+        columns=[
+
+            "timestamp", "open", "high", "low", "close", "volume",
+
+            "close_time", "quote_asset_volume", "number_of_trades",
+
+            "taker_buy_base_asset_volume",
+
+            "taker_buy_quote_asset_volume", "ignore",
+
+        ],
+
+    )
+
+    df = df[["timestamp", "open", "high", "low", "close", "volume"]]
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+    df.set_index("timestamp", inplace=True)
+
+    for col in ("open", "high", "low", "close", "volume"):
+
+        df[col] = df[col].astype(float)
+
+    return df
 
 
 
@@ -511,13 +551,41 @@ def on_ws_error(ws, error):
 
 def on_ws_close(ws, code, msg):
 
-    """Schedule a reconnect — but do not touch Streamlit session_state here."""
+    """
 
-    global ws_connected
+    WebSocket closed. Only schedule a reconnect if WE didn't close it
+
+    ourselves (i.e. we weren't swapping pairs/intervals). Otherwise the
+
+    `_intentional_close` flag is set and we just let it die cleanly.
+
+    """
+
+    global ws_connected, _intentional_close
 
     ws_connected = False
 
-    logger.info("WS closed (%s): %s. Scheduling reconnect in 5s.", code, msg)
+
+    if _intentional_close:
+
+        logger.info(
+
+            "WS closed by us (code=%s). Not reconnecting.", code,
+
+        )
+
+        _intentional_close = False
+
+        return
+
+
+    logger.info(
+
+        "WS closed unexpectedly (code=%s): %s. Scheduling reconnect in 5s.",
+
+        code, msg,
+
+    )
 
 
     def _reconnect():
@@ -526,13 +594,17 @@ def on_ws_close(ws, code, msg):
 
         with _ws_lock:
 
-            if ws_connected:
+            if ws_connected or ws_app is not None:
 
                 return
 
         try:
 
-            _start_websocket_internal(st.session_state.pair, st.session_state.interval)
+            pair = st.session_state.get("pair", "SOLUSDT")
+
+            interval = st.session_state.get("interval", "1d")
+
+            _start_websocket_internal(pair, interval)
 
         except Exception as e:
 
@@ -555,9 +627,17 @@ def on_ws_open(ws):
 
 def _start_websocket_internal(pair: str, interval: str):
 
-    """Open (or replace) the kline WebSocket. Safe to call from any thread."""
+    """
 
-    global ws_app, current_pair, current_interval
+    Open (or replace) the kline WebSocket. Safe to call from any thread.
+
+    Sets `_intentional_close` so the imminent `on_close` callback from the
+
+    outgoing socket does NOT trigger a reconnect.
+
+    """
+
+    global ws_app, current_pair, current_interval, _intentional_close
 
     with _ws_lock:
 
@@ -566,6 +646,8 @@ def _start_websocket_internal(pair: str, interval: str):
         current_interval = interval
 
         if ws_app is not None:
+
+            _intentional_close = True
 
             try:
 
@@ -599,11 +681,13 @@ def _start_websocket_internal(pair: str, interval: str):
 
 def stop_websocket():
 
-    global ws_app, ws_connected
+    global ws_app, ws_connected, _intentional_close
 
     with _ws_lock:
 
         if ws_app is not None:
+
+            _intentional_close = True
 
             try:
 
@@ -613,7 +697,7 @@ def stop_websocket():
 
                 pass
 
-        ws_app = None
+            ws_app = None
 
     ws_connected = False
 
@@ -630,7 +714,7 @@ def load_initial_data(force: bool = False):
 
     Idempotent: if the same (pair, interval, days) was already loaded,
 
-    this is a no-op. That's the single change that fixes the IP ban.
+    this is a no-op. That single guard is what fixes the IP-ban storm.
 
     """
 
@@ -694,27 +778,31 @@ def load_initial_data(force: bool = False):
 
         logger.info(st.session_state.status_message)
 
-    except BinanceAPIException as e:
+    except RuntimeError as e:
 
-        if e.code == -1003:
+        msg = str(e)
+
+        if "rate-limited" in msg.lower() or "429" in msg or "418" in msg:
 
             st.session_state.status_message = (
 
                 "⚠️ Binance has temporarily throttled this server's IP "
 
-                "(code -1003). The ban usually clears in 5–15 minutes. "
+                "(HTTP 429 / code -1003). The ban usually clears in "
 
-                "The live WebSocket tick stream is independent and will keep "
+                "5–15 minutes. The live WebSocket tick stream is "
 
-                "updating the chart — please avoid manual page refreshes."
+                "independent and will keep updating the chart — please "
+
+                "avoid manual page refreshes."
 
             )
 
         else:
 
-            st.session_state.status_message = f"⚠️ Binance error: {e}"
+            st.session_state.status_message = f"⚠️ Failed to load data: {e}"
 
-        logger.error("BinanceAPIException in load_initial_data: %s", e)
+        logger.error("load_initial_data failed: %s\n%s", e, traceback.format_exc())
 
     except Exception as e:
 
@@ -733,10 +821,6 @@ def sync_state():
     with _state_lock:
 
         if not chart_data_global.empty:
-
-            # `.copy()` so render-thread sees a stable snapshot even if WS
-
-            # continues mutating the original between placeholders.
 
             st.session_state.chart_data = chart_data_global
 
@@ -1225,11 +1309,11 @@ if (
 
 # ──────────────────────────── live panel: re-renders without REST ───────────
 
-# This is the second key fix: the panel re-renders every `update_frequency`
+# The panel re-renders every `update_frequency` seconds WITHOUT calling
 
-# seconds WITHOUT calling Binance REST. The data is already in `chart_data`
+# Binance REST. The data is already in `chart_data` (synced from the
 
-# (synced from the WebSocket-updated global).
+# WebSocket-updated global). This is the second key fix.
 
 if _HAS_FRAGMENT_RUN_EVERY:
 
@@ -1289,7 +1373,7 @@ else:
 
     st.info(
 
-        "No data loaded yet. If Binance throttled this server's IP (code -1003), "
+        "No data loaded yet. If Binance throttled this server's IP (HTTP 429), "
 
         "the ban usually clears within 5–15 minutes — the live WebSocket tick "
 
