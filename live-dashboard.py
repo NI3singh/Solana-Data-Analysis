@@ -16,6 +16,8 @@ import traceback
 
 import warnings
 
+import textwrap
+
 from datetime import datetime, timedelta
 
 
@@ -1012,21 +1014,16 @@ def display_metrics(df: pd.DataFrame):
     with cols[0]:
 
         st.markdown(
-
-            f"""
-
-<div class="metric-card {direction}">
-
-    <div class="metric-title">Current Price</div>
-
-    <div class="metric-value">${cur:.6f}</div>
-
-    <div class="change-value {cls}">{sym}{change_pct:.2f}%</div>
-
-</div>""",
-
+            textwrap.dedent(
+                f"""
+                <div class="metric-card {direction}">
+                    <div class="metric-title">Current Price</div>
+                    <div class="metric-value">${cur:.6f}</div>
+                    <div class="change-value {cls}">{sym}{change_pct:.2f}%</div>
+                </div>
+                """
+            ).strip(),
             unsafe_allow_html=True,
-
         )
 
 
@@ -1051,21 +1048,16 @@ def display_metrics(df: pd.DataFrame):
         with cols[i + 1]:
 
             st.markdown(
-
-                f"""
-
-<div class="metric-card">
-
-    <div class="metric-title">Price vs EMA-{p}</div>
-
-    <div class="metric-value">${ema_val:.6f}</div>
-
-    <div class="change-value {c}">{s}{pct:.2f}%</div>
-
-</div>""",
-
+                textwrap.dedent(
+                    f"""
+                    <div class="metric-card">
+                        <div class="metric-title">Price vs EMA-{p}</div>
+                        <div class="metric-value">${ema_val:.6f}</div>
+                        <div class="change-value {c}">{s}{pct:.2f}%</div>
+                    </div>
+                    """
+                ).strip(),
                 unsafe_allow_html=True,
-
             )
 
 
